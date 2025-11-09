@@ -160,7 +160,7 @@ def after_planner_callback(callback_context: CallbackContext, llm_response):
 planner_agent = LlmAgent(
     name="PlannerAgent",
     instruction=PLANNER_INSTRUCTION,
-    model="gemini-2.5-pro",
+    model="gemini-2.5-flash",
     tools=[
         quality_gate_tool, crop_id_tool, diagnose_leaf_tool,
         get_weather_tool, get_soil_tool,

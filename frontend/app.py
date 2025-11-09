@@ -6,6 +6,7 @@ import requests
 from flask import Flask, render_template, request, send_from_directory, jsonify
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 
 
 # Local dev only; Cloud Run uses env vars set at deploy
@@ -30,11 +31,17 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---- Flask ------------------------------------------------------------------
 app = Flask(__name__, template_folder=str(TEMPLATES_DIR), static_folder=str(STATIC_DIR))
+@app.errorhandler(Exception)
+def _json_errors(e):
+    code = e.code if isinstance(e, HTTPException) else 500
+    return jsonify(ok=False, error=str(e)), code
+
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB
 
 # ---- HTTP session (no proxy inheritance in prod) ----------------------------
 SESSION = requests.Session()
+SESSION.headers.update({"Accept": "application/json"})
 SESSION.trust_env = False
 SESSION.proxies = {"http": None, "https": None}
 SESSION.headers.update({"Content-Type": "application/json"})
@@ -222,6 +229,60 @@ def _new_message_with_optional_image(user_text: str, image_uri: Optional[str]):
 
 # ---- Wire to ADK ------------------------------------------------------------
 def _post_events(payload: dict, *, prefer_sse: bool):
+    """
+    Prefer ADK's namespaced endpoints (local ADK) and fall back to flat /run (some deployments).
+    Always raise on non-2xx so we never pass HTML back to the UI.
+    """
+    run_timeout = 180 if prefer_sse else 120
+
+    base = f"{ADK_URL}/apps/{APP_NAME}/users/{USER_ID}/sessions/{SESSION_ID}"
+
+    # 1) Try namespaced JSON /run first
+    try:
+        r = SESSION.post(f"{base}:run", json=payload, timeout=run_timeout)
+        if r.ok:
+            ct = r.headers.get("content-type", "")
+            if ct.startswith("application/json"):
+                return _normalize_events(r.json())
+            return _normalize_events(json.loads(r.text or "[]"))
+        # if it's not 404/405, it's a real failure
+        if r.status_code not in (404, 405):
+            r.raise_for_status()
+    except Exception:
+        pass
+
+    # 2) Try namespaced SSE stream
+    try:
+        rs = SESSION.post(f"{base}:run_sse", json=payload, stream=True, timeout=None)
+        if rs.ok:
+            text = "\n".join(line for line in rs.iter_lines(decode_unicode=True) if line)
+            return _normalize_events(_parse_sse(text))
+        if rs.status_code not in (404, 405):
+            rs.raise_for_status()
+    except Exception:
+        pass
+
+    # 3) Fall back to flat /run (what your Cloud Run ADK served)
+    try:
+        r2 = SESSION.post(f"{ADK_URL}/run", json=payload, timeout=240)
+        if r2.ok:
+            ct = r2.headers.get("content-type", "")
+            if ct.startswith("application/json"):
+                return _normalize_events(r2.json())
+            return _normalize_events(json.loads(r2.text or "[]"))
+        r2.raise_for_status()
+    except Exception as e:
+        # last resort flat SSE
+        try:
+            rs2 = SESSION.post(f"{ADK_URL}/run_sse", json=payload, stream=True, timeout=None)
+            if rs2.ok:
+                text = "\n".join(line for line in rs2.iter_lines(decode_unicode=True) if line)
+                return _normalize_events(_parse_sse(text))
+            rs2.raise_for_status()
+        except Exception:
+            # propagate the original error
+            raise e
+
     """Primary: /run (JSON). Fallback: /run_sse (stream) → /run (retry)."""
     run_timeout = 180 if prefer_sse else 120
 

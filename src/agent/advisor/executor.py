@@ -9,7 +9,7 @@ executor_agent = LlmAgent(
         "Execute the current plan stored in state.current_plan by calling "
         "`run_plan_tool` exactly once, then finish. Do not add free text."
     ),
-    model="gemini-2.5-pro",
+    model="gemini-2.5-flash",
     tools=[run_plan_tool],
     before_model_callback=governor_callback,
 )

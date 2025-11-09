@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import re, os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +16,9 @@ _SYMPTOM_HINTS = re.compile(
     re.I,
 )
 
+ENABLE_AFC = os.getenv("AGENT_ENABLE_AFC", "true").lower() == "true"
+MAX_CALLS_DEFAULT = int(os.getenv("AGENT_MAX_REMOTE_CALLS", "2"))
+MAX_CALLS_IMAGE   = int(os.getenv("AGENT_MAX_REMOTE_CALLS_IMAGE", "4"))
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -56,6 +59,13 @@ def governor_callback(callback_context: Any, llm_request: Optional[Any]) -> None
       - Blocks only for clear safety / missing hard prereqs, otherwise nudges.
     """
     try:
+        if llm_request is not None:
+            cap = 0 if not ENABLE_AFC else (MAX_CALLS_IMAGE if has_image else MAX_CALLS_DEFAULT)
+            setattr(llm_request, "auto_function_calling", ENABLE_AFC)
+            setattr(llm_request, "max_remote_calls", cap)
+    except Exception:
+        pass
+    try:
         state = _ensure_state(callback_context)
 
         # Baseline entry so every query shows a governor log row
@@ -65,7 +75,7 @@ def governor_callback(callback_context: Any, llm_request: Optional[Any]) -> None
         except Exception:
             model_str = None
         if not model_str:
-            model_str = state.get("model") or "gemini-2.5-pro"
+            model_str = state.get("model") or "gemini-2.5-flash"
 
         confidence = 1.0
         try:

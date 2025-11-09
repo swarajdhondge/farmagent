@@ -5,6 +5,6 @@ from .governor import governor_callback
 synthesizer_agent = LlmAgent(
     name="SynthesizerAgent",
     instruction=SYNTHESIZER_INSTRUCTION,
-    model="gemini-2.5-pro",
+    model="gemini-2.5-flash",
     before_model_callback=governor_callback,
 )

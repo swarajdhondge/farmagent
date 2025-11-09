@@ -6,7 +6,7 @@ from .advisor.synthesizer import synthesizer_agent
 planning_loop_agent = LoopAgent(
     name="PlanningLoopAgent",
     sub_agents=[planner_agent],
-    max_iterations=6,
+    max_iterations=3,
 )
 
 root_agent = SequentialAgent(
