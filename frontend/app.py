@@ -85,8 +85,81 @@ def _parse_sse(s: str):
             pass
     return evs
 
-# ---- Normalize ADK events -> UI model --------------------------------------
 def _normalize_events(events):
+    messages, tool_calls, errors, state_updates = [], [], [], []
+    tokens_in = tokens_out = gen_time_ms = 0
+
+    for e in events:
+        # existing
+        sd = (e.get("actions") or {}).get("stateDelta") or {}
+
+        # new: if agent uses e["state"]["current_state"]
+        if not sd and "state" in e:
+            sd = e["state"].get("current_state", {})
+
+        # new: if receipts/governor_log under debugInfo
+        if not sd and "debugInfo" in e:
+            sd = {
+                "governor_log": e["debugInfo"].get("governor_log", []),
+                "receipts": e["debugInfo"].get("receipts", [])
+            }
+
+        if sd:
+            state_updates.append(sd)
+    
+    for e in events:
+        um = e.get("usageMetadata") or {}
+        tokens_in  += int(um.get("inputTokenCount", 0)  or um.get("promptTokenCount", 0) or 0)
+        tokens_out += int(um.get("outputTokenCount", 0) or um.get("candidatesTokenCount", 0) or 0)
+        gen_time_ms = max(gen_time_ms, int(um.get("totalLatencyMs", 0) or 0))
+
+        # errors
+        if ("errorMessage" in e) or ("errorCode" in e):
+            errors.append({"code": e.get("errorCode"), "message": e.get("errorMessage") or e.get("errorCode")})
+
+        # content/messages
+        content = e.get("content"); author = e.get("author")
+        if isinstance(content, dict):
+            for p in content.get("parts", []):
+                if isinstance(p, dict) and "text" in p:
+                    messages.append({"who": "assistant", "author": author, "text": p["text"]})
+                fc = p.get("functionCall")
+                fr = p.get("functionResponse")
+                if fc:
+                    tool_calls.append({"id": fc.get("id"), "name": fc.get("name"), "args": fc.get("args", {}), "response": None})
+                if fr:
+                    tool_calls.append({"id": fr.get("id"), "name": fr.get("name"), "args": None, "response": fr.get("response")})
+
+        # ---- ADK v1.17 and v1.18 compatibility ----
+        sd = (e.get("actions") or {}).get("stateDelta") or {}
+        if not sd:
+            sd = (e.get("state") or {}).get("current_state") or {}
+        if not sd and e.get("debugInfo"):
+            sd = {"governor_log": e["debugInfo"].get("governor_log", [])}
+
+        if sd:
+            state_updates.append(sd)
+
+    receipts_count = 0
+    for sd in state_updates:
+        if isinstance(sd.get("receipts"), list):
+            receipts_count = max(receipts_count, len(sd["receipts"]))
+
+    return {
+        "messages": messages,
+        "tool_calls": len(tool_calls),
+        "errors": errors,
+        "state_updates": state_updates,
+        "metrics": {
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "total_tokens": tokens_in + tokens_out,
+            "tool_calls": len(tool_calls),
+            "receipts": receipts_count,
+            "gen_time_ms": gen_time_ms,
+        },
+    }
+
     messages, tool_calls, errors, state_updates = [], [], [], []
     tokens_in = tokens_out = gen_time_ms = 0
     for e in events:
