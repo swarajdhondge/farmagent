@@ -1,6 +1,10 @@
 
 # FarmAgent — Hackathon Build Guide
 
+## Current Status
+
+**Note:** The "Governor Log" and "Evidence Receipts" features on the dashboard are temporarily disabled as they are undergoing improvements.
+
 ## Overview
 
 FarmAgent is an agentic crop helper built on the **Google Agent Development Kit (ADK)**. It features a transparent reasoning dashboard and a minimal chat UI to provide users with AI-driven agricultural advice.
