@@ -1,14 +1,17 @@
 # app.py  — Flask UI ↔ ADK bridge (Cloud Run–ready)
-import os, json, base64, mimetypes, pathlib, uuid
+import os, json, base64, mimetypes, pathlib, uuid, sys
 from typing import List, Optional
-
+from pathlib import Path
 import requests
 from flask import Flask, render_template, request, send_from_directory, jsonify
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
+
 # Local dev only; Cloud Run uses env vars set at deploy
 load_dotenv()
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 # ---- ADK wiring -------------------------------------------------------------
 ADK_URL    = os.getenv("ADK_SERVER_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -18,8 +21,8 @@ SESSION_ID = os.getenv("ADK_SESSION_ID", "s_cloud")
 
 # ---- Paths ------------------------------------------------------------------
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
-TEMPLATES_DIR = BASE_DIR / "frontend" / "templates"
-STATIC_DIR    = BASE_DIR / "frontend" / "static"
+TEMPLATES_DIR = BASE_DIR  / "templates"
+STATIC_DIR    = BASE_DIR  / "static"
 
 # Cloud Run: only /tmp is writable
 UPLOAD_DIR    = pathlib.Path(os.getenv("UPLOAD_DIR", "/tmp/uploads"))
