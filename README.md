@@ -28,7 +28,34 @@ The project is built around the Google ADK, which facilitates the creation of co
 
 - Python 3.10+
 - A Google Cloud project with Vertex AI enabled.
-- Authenticated `gcloud` CLI for Application Default Credentials (ADC). Run `gcloud auth application-default login`.
+
+### Authentication
+
+You need to authenticate to Google Cloud for the application to work. Choose one of the following methods:
+
+**Method 1: Application Default Credentials (Recommended for Local Development)**
+
+For local development, the easiest way to authenticate is by using the `gcloud` CLI.
+
+1.  Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install).
+2.  Run the following command to log in and create your Application Default Credentials:
+    ```bash
+    gcloud auth application-default login
+    ```
+
+**Method 2: Service Account Key**
+
+For production environments or if you prefer using a service account, you can use a JSON key file.
+
+1.  **Create a service account key:**
+    Follow the instructions at [Creating and managing service account keys](https://docs.cloud.google.com/iam/docs/keys-create-delete) to create and download a JSON key file. It is recommended to grant the "Vertex AI User" role to this service account.
+2.  **Place the key file:**
+    Place the downloaded JSON file in the root of the `farmagent` directory and rename it to `service-account-key.json`.
+3.  **Set the environment variable:**
+    The application will look for this file if the `GOOGLE_APPLICATION_CREDENTIALS` environment variable is set. While you can set this variable system-wide, for this project, you can add it to your `.env` file:
+    ```env
+    GOOGLE_APPLICATION_CREDENTIALS=service-account-key.json
+    ```
 
 ### 1. Setup and Installation
 
@@ -50,26 +77,33 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. Create `.env` file
+### 2. Configure Environment Variables
 
-Create a file named `.env` in the `farmagent` directory with the following content, replacing `your-gcp-project-id` with your actual Google Cloud project ID.
+This project uses a `.env` file for configuration. A `.env.example` file is provided as a template.
 
-```env
-# ADK Server Configuration
-ADK_SERVER_URL=http://127.0.0.1:8000
-ADK_APP=src
-ADK_USER_ID=user
-ADK_SESSION_ID=s_local
+1.  **Rename the file:**
+    In the `farmagent` directory, rename `.env.example` to `.env`.
 
-# Flask UI Configuration
-FLASK_PORT=5000
-FLASK_DEBUG=True
+2.  **Edit the file:**
+    Open the `.env` file and replace `your-gcp-project-id` with your actual Google Cloud project ID.
 
-# Google Cloud Configuration for ADK
-GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-GOOGLE_CLOUD_LOCATION=us-central1
-GOOGLE_GENAI_USE_VERTEXAI=True
-```
+    ```env
+    # ADK Server Configuration
+    ADK_SERVER_URL=http://127.0.0.1:8000
+    ADK_APP=src
+    ADK_USER_ID=user
+    ADK_SESSION_ID=s_local
+
+    # Flask UI Configuration
+    FLASK_PORT=5000
+    FLASK_DEBUG=True
+
+    # Google Cloud Configuration for ADK
+    GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+    GOOGLE_CLOUD_LOCATION=us-central1
+    GOOGLE_GENAI_USE_VERTEXAI=True
+    # GOOGLE_APPLICATION_CREDENTIALS=service-account-key.json
+    ```
 
 ### 3. Start the Servers (2 Terminals)
 
